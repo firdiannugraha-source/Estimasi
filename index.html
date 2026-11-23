@@ -2028,7 +2028,7 @@ function oplLd(){
 }
 function oplSv(noSync){try{localStorage.setItem("oplDB",JSON.stringify(OPL))}catch(e){toast("Gagal menyimpan data OPL")}if(!noSync)oplSyncSoon()}
 oplLd();
-var oplS={cat:"",tab:"jual",tglJ:"",tglM:"",tglA:"",bln:"",pdfAkt:true};
+var oplS={cat:"",tab:"jual",tglJ:"",tglM:"",tglA:"",bln:"",pdfAkt:true,pdfIns:true};
 function oplId(){return "o"+Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
 function oplQ(v){var n=parseFloat(String(v==null?"":v).replace(",","."));return isFinite(n)?Math.round(n*100)/100:0}
 function oplFq(n){return String(Math.round(n*100)/100).replace(".",",")}
@@ -2217,7 +2217,11 @@ function oplTabAktual(m){
 function oplBlnData(bln){
   return OPL.cats.map(function(c){
     var aw=oplStock(c.id,bln+"-01",false),ms=0,jl=0,ins=0,days={};
-    OPL.masuk.forEach(function(x){if(x.cat===c.id&&x.tgl.slice(0,7)===bln)ms+=x.qty});
+    var mdays={};
+    OPL.masuk.forEach(function(x){
+      if(x.cat===c.id&&x.tgl.slice(0,7)===bln){ms+=x.qty;var md=mdays[x.tgl]||(mdays[x.tgl]={tgl:x.tgl,qty:0});md.qty+=x.qty}
+    });
+    var mdl=Object.keys(mdays).sort().map(function(k){return {tgl:k,qty:Math.round(mdays[k].qty*100)/100}});
     OPL.jual.forEach(function(x){
       if(x.cat===c.id&&x.tgl.slice(0,7)===bln){
         var v=x.qty*(x.ins||0);jl+=x.qty;ins+=v;
@@ -2227,7 +2231,7 @@ function oplBlnData(bln){
     var dl=Object.keys(days).sort().map(function(k){var d=days[k];return {tgl:d.tgl,qty:Math.round(d.qty*100)/100,ins:Math.round(d.ins)}});
     var akl=OPL.aktual.filter(function(x){return x.cat===c.id&&x.tgl.slice(0,7)===bln}).sort(function(a,b){return a.tgl<b.tgl?-1:a.tgl>b.tgl?1:0});
     ms=Math.round(ms*100)/100;jl=Math.round(jl*100)/100;
-    return {c:c,aw:aw,ms:ms,jl:jl,ak:Math.round((aw+ms-jl)*100)/100,ins:Math.round(ins),days:dl,akl:akl,akLast:akl.length?akl[akl.length-1]:null};
+    return {c:c,aw:aw,ms:ms,jl:jl,ak:Math.round((aw+ms-jl)*100)/100,ins:Math.round(ins),days:dl,mdl:mdl,akl:akl,akLast:akl.length?akl[akl.length-1]:null};
   });
 }
 function oplDM(t){return t.slice(8)+"/"+t.slice(5,7)}
@@ -2235,6 +2239,7 @@ function oplAkTxt(x){return x.akLast?oplFq(x.akLast.qty)+" ("+oplDM(x.akLast.tgl
 function oplTabBulanan(m){
   if(!oplS.bln)oplS.bln=tYMD(new Date()).slice(0,7);
   if(oplS.pdfAkt===undefined)oplS.pdfAkt=true;
+  if(oplS.pdfIns===undefined)oplS.pdfIns=true;
   var bln=oplS.bln,d=oplBlnData(bln),tot=0;
   var rows=d.map(function(x){
     tot+=x.ins;
@@ -2252,13 +2257,15 @@ function oplTabBulanan(m){
   h+='</div>';
   h+='<div class="c accent"><div class="section-title">'+ic("dl")+' Download Laporan</div>'
    +'<label style="display:flex;align-items:center;gap:10px;margin:0 0 12px;text-transform:none;letter-spacing:0;font-size:14px;font-weight:600"><input type="checkbox" id="oBAkt" style="width:20px;height:20px;margin:0;flex:none"'+(oplS.pdfAkt?' checked':'')+'> Tampilkan Stock Aktual di PDF</label>'
+   +'<label style="display:flex;align-items:center;gap:10px;margin:0 0 12px;text-transform:none;letter-spacing:0;font-size:14px;font-weight:600"><input type="checkbox" id="oBIns" style="width:20px;height:20px;margin:0;flex:none"'+(oplS.pdfIns?' checked':'')+'> Tampilkan Insentif di PDF</label>'
    +'<button class="b" id="oBPdf" type="button">Download PDF \u00b7 '+esc(lpMonthName(bln))+'</button>'
    +'<button class="b o" id="oBCsv" type="button" style="margin-top:8px">Download CSV</button></div>';
   m.innerHTML=h;
   $("oBBln").onchange=function(){oplS.bln=this.value||tYMD(new Date()).slice(0,7);oplRender()};
   $("oBAkt").onchange=function(){oplS.pdfAkt=this.checked};
+  $("oBIns").onchange=function(){oplS.pdfIns=this.checked};
   $("oBPdf").onclick=function(){
-    try{oplDl(oplPdfReport(bln,$("oBAkt").checked),"laporan-opl-"+bln+".pdf");toast("PDF diunduh")}
+    try{oplDl(oplPdfReport(bln,$("oBAkt").checked,$("oBIns").checked),"laporan-opl-"+bln+".pdf");toast("PDF diunduh")}
     catch(e){try{console.error(e)}catch(x){}toast("Gagal membuat PDF")}
   };
   $("oBCsv").onclick=function(){
@@ -2317,7 +2324,8 @@ function oplPdfDoc(){
   };
   return d;
 }
-function oplPdfReport(bln,incAkt){
+function oplPdfReport(bln,incAkt,incIns){
+  if(incIns===undefined)incIns=true;
   var d=oplPdfDoc(),M=40,R=555,y=0;
   var NAVY=[1,24,67],GRAY=[238,241,246],DK=[30,41,59],RED=[217,26,42],MU=[100,116,139],LN=[210,216,226],WH=[255,255,255];
   var now=new Date(),p2=function(n){return ("0"+n).slice(-2)};
@@ -2355,19 +2363,35 @@ function oplPdfReport(bln,incAkt){
     y+=12;
   }
   d.add();y=head(false);
+  function cols(spec){   /* spec: [[judul,bobot]]; kolom pertama rata kiri, sisanya rata kanan, lebar total tetap */
+    var tot=0,used=0,out=[];
+    spec.forEach(function(q){tot+=q[1]});
+    spec.forEach(function(q,i){
+      var w=i===spec.length-1?(R-M)-used:Math.round(q[1]/tot*(R-M));
+      used+=w;out.push({h:q[0],w:w,al:i===0&&spec.first?"l":"r"});
+    });
+    return out;
+  }
+  function cols2(spec){var c=cols(spec);c[0].al="l";return c}
   oplBlnData(bln).forEach(function(x){
     section(x.c.n);
-    var sc=incAkt
-      ?[{h:"Stok awal",w:80,al:"r"},{h:"Masuk",w:75,al:"r"},{h:"Terjual",w:75,al:"r"},{h:"Stok akhir",w:85,al:"r"},{h:"Stock aktual",w:100,al:"r"},{h:"Insentif (Rp)",w:100,al:"r"}]
-      :[{h:"Stok awal",w:90,al:"r"},{h:"Masuk",w:90,al:"r"},{h:"Terjual",w:90,al:"r"},{h:"Stok akhir",w:100,al:"r"},{h:"Insentif (Rp)",w:145,al:"r"}];
-    var sr=incAkt?[oplFq(x.aw),oplFq(x.ms),oplFq(x.jl),oplFq(x.ak),oplAkTxt(x),rp(x.ins)]:[oplFq(x.aw),oplFq(x.ms),oplFq(x.jl),oplFq(x.ak),rp(x.ins)];
-    sub("Ringkasan stok bulanan");table(sc,[sr],false);
+    var spec=[["Stok awal",1],["Masuk",1],["Terjual",1],["Stok akhir",1.1]],sr=[oplFq(x.aw),oplFq(x.ms),oplFq(x.jl),oplFq(x.ak)];
+    if(incAkt){spec.push(["Stock aktual",1.35]);sr.push(oplAkTxt(x))}
+    if(incIns){spec.push(["Insentif (Rp)",1.4]);sr.push(rp(x.ins))}
+    sub("Ringkasan stok bulanan");table(cols(spec),[sr],false);
+    sub("Barang masuk per tanggal");
+    if(!x.mdl.length)note("Tidak ada barang masuk di bulan ini.");
+    else{
+      var mr=x.mdl.map(function(v){return [fmtD(v.tgl),oplFq(v.qty)]});
+      mr.push(["TOTAL",oplFq(x.ms)]);
+      table(cols2([["Tanggal",1.35],["Masuk",1]]),mr,true);
+    }
     sub("Terjual per tanggal");
     if(!x.days.length)note("Belum ada penjualan di bulan ini.");
     else{
-      var dr=x.days.map(function(v){return [fmtD(v.tgl),oplFq(v.qty),rp(v.ins)]});
-      dr.push(["TOTAL",oplFq(x.jl),rp(x.ins)]);
-      table([{h:"Tanggal",w:205,al:"l"},{h:"Terjual",w:150,al:"r"},{h:"Insentif (Rp)",w:160,al:"r"}],dr,true);
+      var dr=x.days.map(function(v){return incIns?[fmtD(v.tgl),oplFq(v.qty),rp(v.ins)]:[fmtD(v.tgl),oplFq(v.qty)]});
+      dr.push(incIns?["TOTAL",oplFq(x.jl),rp(x.ins)]:["TOTAL",oplFq(x.jl)]);
+      table(incIns?cols2([["Tanggal",1.35],["Terjual",1],["Insentif (Rp)",1.05]]):cols2([["Tanggal",1.35],["Terjual",1]]),dr,true);
     }
     if(incAkt){
       sub("Stock aktual (hasil hitung fisik)");
@@ -2377,7 +2401,7 @@ function oplPdfReport(bln,incAkt){
           var sis=oplStock(x.c.id,v.tgl,true),sel=Math.round((v.qty-sis)*100)/100;
           return [fmtD(v.tgl),oplFq(v.qty),oplFq(sis),(sel>0?"+":"")+oplFq(sel)];
         });
-        table([{h:"Tanggal",w:155,al:"l"},{h:"Stock aktual",w:120,al:"r"},{h:"Stok sistem",w:120,al:"r"},{h:"Selisih",w:120,al:"r"}],ar,false);
+        table(cols2([["Tanggal",1.3],["Stock aktual",1],["Stok sistem",1],["Selisih",1]]),ar,false);
       }
     }
     y+=6;
