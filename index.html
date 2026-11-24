@@ -890,7 +890,7 @@ html,body{max-width:100%;overflow-x:hidden}
 
     <details class="c accent set-sec">
       <summary class="section-title"><svg class="ic" aria-hidden="true"><use href="#i-box"/></svg>Jenis OPL</summary>
-      <div class="sub" style="margin-top:0">Jenis OPL untuk menu Laporan Penjualan OPL (contoh: ENGINE PURCHAGING). Atur insentif per unit tiap OPL di sini. OPL yang sudah punya transaksi tidak bisa dihapus.</div>
+      <div class="sub" style="margin-top:0">Jenis OPL untuk menu Laporan Penjualan OPL (contoh: ENGINE PURCHAGING). Atur satuan (mis. pcs) dan insentif per satuan tiap OPL di sini. OPL yang sudah punya transaksi tidak bisa dihapus.</div>
       <div id="oplSetList"></div>
       <button class="b o" id="oplSetAdd" type="button" style="margin-bottom:12px">+ Tambah OPL</button>
       <button class="b" id="oplSetSave" type="button">Simpan</button>
@@ -2035,7 +2035,7 @@ $("lpCsv").onclick=function(){
 })();
 
 /* ---- Laporan Penjualan OPL (Engine Purchaging dan OPL lain). Stok dihitung per jenis OPL, tanpa kode/nama barang. Data tersimpan di perangkat ini ---- */
-var OPL={cats:[{id:"c1",n:"ENGINE PURCHAGING",ins:0,awal:0}],masuk:[{id:"seed128",cat:"c1",tgl:"2026-10-30",qty:128,ket:"STOK AWAL"}],jual:[],aktual:[],seeded:1,del:{},syn:{},synced:0};
+var OPL={cats:[{id:"c1",n:"ENGINE PURCHAGING",ins:0,awal:0,sat:"pcs"}],masuk:[{id:"seed128",cat:"c1",tgl:"2026-10-30",qty:128,ket:"STOK AWAL"}],jual:[],aktual:[],seeded:1,del:{},syn:{},synced:0};
 function oplLd(){
   try{
     var x=JSON.parse(localStorage.getItem("oplDB")||"null");
@@ -2069,6 +2069,7 @@ function oplId(){return "o"+Date.now().toString(36)+Math.random().toString(36).s
 function oplQ(v){var n=parseFloat(String(v==null?"":v).replace(",","."));return isFinite(n)?Math.round(n*100)/100:0}
 function oplFq(n){return String(Math.round(n*100)/100).replace(".",",")}
 function oplCat(id){id=id||oplS.cat;for(var i=0;i<OPL.cats.length;i++)if(OPL.cats[i].id===id)return OPL.cats[i];return null}
+function oplSat(id){var c=oplCat(id);return (c&&c.sat)||"pcs"}
 function oplCatName(){var c=oplCat();return c?c.n:""}
 /* stok per OPL: lim = batas tanggal (kosong = semua), incl = tanggal lim ikut dihitung */
 function oplStock(id,lim,incl){
@@ -2134,7 +2135,7 @@ function oplTabJual(m){
   if(tglList.indexOf(oplS.tglV)<0)tglList.push(oplS.tglV);
   tglList.sort().reverse();
   var viewOpts=tglList.map(function(t){
-    return '<option value="'+esc(t)+'"'+(t===oplS.tglV?' selected':'')+'>'+esc(fmtD(t))+(t===today?' (hari ini)':'')+(tot_by[t]?' \u00b7 '+oplFq(tot_by[t])+' unit':'')+'</option>';
+    return '<option value="'+esc(t)+'"'+(t===oplS.tglV?' selected':'')+'>'+esc(fmtD(t))+(t===today?' (hari ini)':'')+(tot_by[t]?' \u00b7 '+oplFq(tot_by[t])+' '+esc(oplSat()):'')+'</option>';
   }).join("");
   var list=OPL.jual.filter(function(j){return j.cat===oplS.cat&&j.tgl===oplS.tglV});
   var tq=0,tot=0,rows=list.map(function(j,n){
@@ -2144,10 +2145,10 @@ function oplTabJual(m){
   h+='<div class="c accent"><div class="section-title">'+ic("clip")+' '+(oplS.tglV===today?'Data Penjualan Hari Ini':'Data Penjualan '+esc(fmtD(oplS.tglV)))+'</div>'
    +'<label>Lihat tanggal</label><select id="oJView">'+viewOpts+'</select><div style="margin-top:12px">';
   if(!list.length)h+='<div class="sub" style="margin:0">Belum ada penjualan di tanggal ini.</div>';
-  else h+=oplTbl(["No","Jumlah","Insentif/unit","Insentif",""],rows,'<tr><td class="nw"><b>TOTAL</b></td><td class="nw"><b>'+oplFq(tq)+'</b></td><td></td><td class="nw"><b>Rp '+rp(tot)+'</b></td><td></td></tr>');
+  else h+=oplTbl(["No","Jumlah ("+esc(oplSat())+")","Insentif/"+esc(oplSat()),"Insentif",""],rows,'<tr><td class="nw"><b>TOTAL</b></td><td class="nw"><b>'+oplFq(tq)+'</b></td><td></td><td class="nw"><b>Rp '+rp(tot)+'</b></td><td></td></tr>');
   h+='</div></div>';
   m.innerHTML=h;
-  function info(){$("oJInfo").textContent="Stok tersedia: "+oplFq(oplAvail(oplS.cat,$("oJTgl").value||oplS.tglJ))+" unit \u00b7 Insentif Rp "+rp(c.ins||0)+" per unit"}
+  function info(){$("oJInfo").textContent="Stok tersedia: "+oplFq(oplAvail(oplS.cat,$("oJTgl").value||oplS.tglJ))+" "+oplSat()+" \u00b7 Insentif Rp "+rp(c.ins||0)+" per "+oplSat()}
   info();
   $("oJTgl").onchange=function(){oplS.tglJ=this.value||today;oplRender()};
   $("oJView").onchange=function(){oplS.tglV=this.value||today;oplRender()};
@@ -2156,7 +2157,7 @@ function oplTabJual(m){
     if(!tg){toast("Isi tanggal");return}
     if(q<=0){toast("Isi jumlah terjual");return}
     var av=oplAvail(oplS.cat,tg);
-    if(q>av){toast("Stok tidak cukup. Tersedia "+oplFq(av)+" unit");return}
+    if(q>av){toast("Stok tidak cukup. Tersedia "+oplFq(av)+" "+oplSat());return}
     OPL.jual.push({id:oplId(),cat:oplS.cat,tgl:tg,qty:q,ins:c.ins||0,by:ADM||USR});
     oplSv();oplS.tglJ=tg;oplS.tglV=tg;toast("Penjualan tersimpan");oplRender();
   };
@@ -2234,7 +2235,7 @@ function oplTabAktual(m){
   m.innerHTML=h;
   function info(){
     var tg=$("oATgl").value||today;
-    $("oAInfo").textContent="Stok sistem per "+fmtD(tg)+": "+oplFq(oplStock(oplS.cat,tg,true))+" unit";
+    $("oAInfo").textContent="Stok sistem per "+fmtD(tg)+": "+oplFq(oplStock(oplS.cat,tg,true))+" "+oplSat();
   }
   info();
   $("oATgl").onchange=function(){oplS.tglA=this.value||today;oplRender()};
@@ -2299,7 +2300,7 @@ function oplTabBulanan(m){
   var h='<div class="c accent"><div class="section-title">'+ic("cal")+' Stock Bulanan</div>'
    +'<label>Bulan</label><input id="oBBln" type="month" value="'+esc(bln)+'">'
    +'<div style="margin-top:12px">'+oplTbl(["OPL","Stok awal","Masuk","Terjual","Stok akhir","Stock aktual","Insentif"],rows,'<tr><td colspan="6"><b>TOTAL INSENTIF '+esc(lpMonthName(bln).toUpperCase())+'</b></td><td class="nw"><b>Rp '+rp(tot)+'</b></td></tr>')+'</div>'
-   +'<div class="sub" style="margin:8px 0 0">Stok akhir = stok awal + masuk \u2212 terjual. Stock aktual = hasil hitung fisik terakhir di bulan itu (tanggal dalam kurung). Insentif = jumlah terjual \u00d7 insentif per unit.</div></div>';
+   +'<div class="sub" style="margin:8px 0 0">Stok akhir = stok awal + masuk \u2212 terjual. Stock aktual = hasil hitung fisik terakhir di bulan itu (tanggal dalam kurung). Insentif = jumlah terjual \u00d7 insentif per satuan (pcs).</div></div>';
   var drows=sel.days.map(function(x){return '<tr><td class="nw">'+esc(fmtD(x.tgl))+'</td><td class="nw">'+oplFq(x.qty)+'</td><td class="nw">Rp '+rp(x.ins)+'</td></tr>'});
   h+='<div class="c accent"><div class="section-title">'+ic("clip")+' Terjual per Tanggal \u00b7 '+esc(sel.c.n)+'</div>';
   if(!sel.days.length)h+='<div class="sub" style="margin:0">Belum ada penjualan di '+esc(lpMonthName(bln))+'.</div>';
@@ -2424,7 +2425,7 @@ function oplPdfReport(bln,incAkt,incIns){
   }
   function cols2(spec){var c=cols(spec);c[0].al="l";return c}
   oplBlnData(bln).forEach(function(x){
-    section(x.c.n);
+    section(x.c.n+"   (satuan: "+oplSat(x.c.id)+")");
     var spec=[["Stok awal",1],["Masuk",1],["Terjual",1],["Stok akhir",1.1]],sr=[oplFq(x.aw),oplFq(x.ms),oplFq(x.jl),oplFq(x.ak)];
     if(incAkt){spec.push(["Stock aktual",1.35]);sr.push(oplAkTxt(x))}
     if(incIns){spec.push(["Insentif (Rp)",1.4]);sr.push(rp(x.ins))}
@@ -2464,15 +2465,17 @@ function oplPdfReport(bln,incAkt,incIns){
   return d.blob();
 }
 
-/* ---- Pengaturan: jenis OPL (nama dan insentif per unit; tersimpan otomatis saat diisi) ---- */
+/* ---- Pengaturan: jenis OPL (nama, satuan, dan insentif per satuan; tersimpan otomatis saat diisi) ---- */
 function oplSetRow(c){
   var r=document.createElement("div");r.className="c";r.setAttribute("data-id",c.id||"");r.style.marginBottom="10px";
   r.innerHTML='<label>Nama OPL</label><input class="caps onm" placeholder="Nama OPL" autocomplete="off" value="'+esc(c.n)+'">'
-   +'<label>Insentif per unit (Rp)</label><input class="oin" inputmode="numeric" placeholder="0" autocomplete="off" value="'+(c.ins?c.ins:"")+'">'
+   +'<div class="g"><div><label>Satuan</label><input class="osat" placeholder="pcs" autocomplete="off" value="'+esc(c.sat||"pcs")+'"></div>'
+   +'<div><label>Insentif per satuan (Rp)</label><input class="oin" inputmode="numeric" placeholder="0" autocomplete="off" value="'+(c.ins?c.ins:"")+'"></div></div>'
    +'<button type="button" class="b o opl-act" style="margin-top:10px">Hapus OPL</button>';
   capsInput(r.querySelector(".onm"));
   r.querySelector(".onm").addEventListener("change",function(){oplSetCommit(true)});
   r.querySelector(".oin").addEventListener("change",function(){oplSetCommit(true)});
+  r.querySelector(".osat").addEventListener("change",function(){oplSetCommit(true)});
   r.querySelector("button").onclick=function(){
     var id=r.getAttribute("data-id");
     if(id&&(OPL.masuk.some(function(x){return x.cat===id})||OPL.jual.some(function(x){return x.cat===id}))){toast("OPL ini sudah punya transaksi, tidak bisa dihapus");return}
@@ -2494,7 +2497,7 @@ function oplSetCommit(auto){
     if(!n){err="Nama OPL tidak boleh kosong";return}
     if(seen[n]){err="Nama OPL ganda: "+n;return}
     seen[n]=1;
-    out.push({id:id||oplId(),n:n,ins:num(r.querySelector(".oin").value),awal:old?old.awal:0});
+    out.push({id:id||oplId(),n:n,ins:num(r.querySelector(".oin").value),awal:old?old.awal:0,sat:(r.querySelector(".osat").value.trim().toLowerCase()||"pcs")});
   });
   if(err){toast(err);return false}
   if(!out.length){toast("Minimal harus ada 1 OPL");return false}
@@ -2510,7 +2513,7 @@ function oplSetCommit(auto){
   if(!auto)oplSetRender();
   return true;
 }
-$("oplSetAdd").onclick=function(){var r=oplSetRow({id:"",n:"",ins:0,awal:0});$("oplSetList").appendChild(r);r.querySelector(".onm").focus()};
+$("oplSetAdd").onclick=function(){var r=oplSetRow({id:"",n:"",ins:0,awal:0,sat:"pcs"});$("oplSetList").appendChild(r);r.querySelector(".onm").focus()};
 $("oplSetSave").onclick=function(){oplSetCommit(false)};
 
 
