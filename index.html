@@ -1619,8 +1619,8 @@ function buatPdf(r,mode){
   var J=window.jspdf.jsPDF;
   var doc=new J({unit:"pt",format:"a4",orientation:"portrait"});
   var S=doc.internal.pageSize.getWidth()/1588;          /* semua koordinat = piksel template (1588 x 2246) */
-  var X=[120,170,800,893,1085,1277,1470];               /* batas kolom: NO | SPARE PART | STOK | HARGA | JASA | GANTI */
-  var T0=415, HH=36, RH0=44, RH=44, K=1, R0=T0+HH, BOT_MAX=1880;                   /* atas tabel, tinggi header, tinggi baris, awal baris */
+  var X=[120,170,730,880,1030,1200,1290,1470];          /* batas kolom: NO | SPAREPART | HARGA | JASA | TOTAL (kosong) | STOK | GANTI/TIDAK (kosong) */
+  var T0=415, HH=36, RH0=44, RH=44, K=1, R0=T0+HH, BOT_MAX=1700;                   /* atas tabel, tinggi header, tinggi baris, awal baris */
   var NAVY=[0,27,59], BLUE=[35,160,218], HEAD=[43,159,220];
 
   function col(c){doc.setTextColor(c[0],c[1],c[2])}
@@ -1689,10 +1689,10 @@ function buatPdf(r,mode){
 
     /* header tabel */
     doc.setFillColor(HEAD[0],HEAD[1],HEAD[2]);
-    doc.rect(X[0]*S,T0*S,(X[6]-X[0])*S,HH*S,"F");
-    var HT=["NO","SPARE PART","STOK","HARGA","JASA","GANTI"];
-    font("bold",21);col(NAVY);
-    HT.forEach(function(t,i){tx(t,(X[i]+X[i+1])/2,T0+26,{align:"center"})});
+    doc.rect(X[0]*S,T0*S,(X[7]-X[0])*S,HH*S,"F");
+    var HT=["NO","SPAREPART","HARGA","JASA","TOTAL","STOK","GANTI/TIDAK"];
+    col(NAVY);
+    HT.forEach(function(t,i){var hs=fit(t,"bold",21,X[i+1]-X[i]-12);font("bold",hs);tx(t,(X[i]+X[i+1])/2,T0+26,{align:"center"})});
 
     /* isi baris */
     rows.forEach(function(it,i){
@@ -1701,29 +1701,31 @@ function buatPdf(r,mode){
       col([9,9,9]);
       font("normal",20*K);tx(no+i+1,(X[0]+X[1])/2,y+RH*0.66,{align:"center"});
       var s=fit(it.nama,"normal",20*K,X[2]-X[1]-14);font("normal",s);if(it.nama)tx(it.nama,X[1]+7,y+RH*0.66);
-      box((X[2]+X[3])/2,y+RH/2,it.ada);
-      font("normal",20*K);if(it.harga)tx(it.harga,X[3]+7,y+RH*0.66);
+      /* kolom TOTAL dan GANTI/TIDAK sengaja kosong (diisi manual dengan pulpen) */
+      box((X[5]+X[6])/2,y+RH/2,it.ada);
+      if(it.harga){var hs2=fit(it.harga,"normal",20*K,X[3]-X[2]-14);font("normal",hs2);tx(it.harga,X[2]+7,y+RH*0.66)}
     });
 
     /* garis titik tabel */
     dotted();
-    ln(X[0],T0,X[6],T0);
-    for(var i=0;i<=rows.length;i++)ln(X[0],R0+i*RH,X[6],R0+i*RH);
+    ln(X[0],T0,X[7],T0);
+    for(var i=0;i<=rows.length;i++)ln(X[0],R0+i*RH,X[7],R0+i*RH);
     X.forEach(function(x){ln(x,T0,x,bottom)});
 
     if(last){
-      /* TOTAL */
-      var a=bottom, b=bottom+85;
+      /* TOTAL HARGA SPAREPART (kiri, jarak 3 baris dari baris terakhir) */
+      var a=bottom+3*RH, LX=X[0], MX=LX+440, VX=LX+680;
       dotted();
-      ln(X[2],a,X[5],a);ln(X[2],a+61,X[5],a+61);
-      [X[2],X[3],X[4],X[5]].forEach(function(x){ln(x,a,x,a+61)});
-      font("bold",20);col([0,0,0]);tx("TOTAL",X[2]+7,a+37);
-      font("bold",22);tx(rp(total),X[3]+7,a+37);
-      /* PART + JASA */
-      ln(X[2],b,X[5],b);ln(X[2],b+61,X[5],b+61);
-      [X[2],X[3],X[5]].forEach(function(x){ln(x,b,x,b+61)});
-      font("bold",18);col([0,0,0]);tx("PART +",X[2]+5,b+24);tx("JASA",X[2]+5,b+52);
-      /* nilai PART + JASA sengaja dikosongkan (diisi manual) */
+      ln(LX,a,VX,a);ln(LX,a+61,VX,a+61);
+      [LX,MX,VX].forEach(function(x){ln(x,a,x,a+61)});
+      font("bold",20);col([0,0,0]);tx("TOTAL HARGA SPAREPART",LX+7,a+37);
+      font("bold",22);tx(rp(total),MX+7,a+37);
+      /* TOTAL HARGA PART + JASA: nilainya sengaja dikosongkan (diisi manual dengan pulpen) */
+      var b=a+61+22;
+      dotted();
+      ln(LX,b,VX,b);ln(LX,b+61,VX,b+61);
+      [LX,MX,VX].forEach(function(x){ln(x,b,x,b+61)});
+      font("bold",20);col([0,0,0]);tx("TOTAL HARGA PART + JASA",LX+7,b+37);
       /* tanda tangan */
       font("bold",20);col([0,0,0]);tx("SERVICE ADVISOR",120,2052);
       if(sa){var s2=fit(sa,"bold",20,600);font("bold",s2);tx(sa,120,2164)}
